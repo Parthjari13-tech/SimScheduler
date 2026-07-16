@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">SIM Scheduler</string>
-    <string name="accessibility_description">SIM Scheduler uses Accessibility Service to automatically toggle SIM cards in your device Settings based on your configured schedules. It reads the SIM settings screen and taps the enable/disable toggle on your behalf.</string>
-</resources>
