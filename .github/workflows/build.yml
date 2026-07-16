@@ -31,7 +31,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: cd SimScheduler && ./gradlew assembleDebug
+        run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
