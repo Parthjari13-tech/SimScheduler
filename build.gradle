@@ -1,4 +1,53 @@
 plugins {
-    id 'com.android.application' version '8.2.0' apply false
-    id 'org.jetbrains.kotlin.android' version '1.9.21' apply false
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.simscheduler'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.simscheduler"
+        minSdk 21
+        targetSdk 34
+
+        // Version auto-set by GitHub Actions via -PversionCode and -PversionName
+        // Fallback values used when building locally
+        versionCode = project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
+        versionName = project.hasProperty('versionName') ? project.property('versionName') : "1.0.0"
+    }
+
+    buildTypes {
+        debug {
+            versionNameSuffix "-debug"
+            applicationIdSuffix ".debug"
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 }
