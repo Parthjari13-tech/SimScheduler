@@ -11,11 +11,18 @@ android {
         applicationId "com.simscheduler"
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+
+        // Version auto-set by GitHub Actions via -PversionCode and -PversionName
+        // Fallback values used when building locally
+        versionCode = project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
+        versionName = project.hasProperty('versionName') ? project.property('versionName') : "1.0.0"
     }
 
     buildTypes {
+        debug {
+            versionNameSuffix "-debug"
+            applicationIdSuffix ".debug"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -33,6 +40,7 @@ android {
 
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 
