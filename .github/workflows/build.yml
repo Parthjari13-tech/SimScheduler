@@ -3,7 +3,10 @@ name: Build SIM Scheduler APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:        # allows manual trigger too
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -30,15 +33,25 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      #- name: Build Debug APK
-      #  run: cd SimScheduler && ./gradlew assembleDebug
-
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/SIM-Scheduler.apk
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SIM-Scheduler-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/SIM-Scheduler.apk
           retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "SIM Scheduler - Build ${{ github.run_number }}"
+          body: "Automated build from GitHub Actions. Download SIM-Scheduler.apk below."
+          files: app/build/outputs/apk/debug/SIM-Scheduler.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
