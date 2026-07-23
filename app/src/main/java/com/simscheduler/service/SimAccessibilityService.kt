@@ -22,25 +22,15 @@ class SimAccessibilityService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
-
-    // State machine
     private var pendingSimName: String? = null
     private var pendingTurnOff: Boolean = false
-    private var state: State = State.IDLE
-
-    private enum class State {
-        IDLE,
-        WAITING_FOR_SIM_LIST,      // Waiting for main SIM list page
-        WAITING_FOR_SIM_DETAIL,    // Waiting for individual SIM detail page
-        WAITING_FOR_CONFIRMATION,  // Waiting for "Turn off?" popup
-        DONE
-    }
+    private var isActive = false
+    private var attemptCount = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.d(TAG, "✅ Accessibility Service connected")
-
+        Log.d(TAG, "✅ Service connected")
         val info = AccessibilityServiceInfo().apply {
             eventTypes =
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -57,272 +47,289 @@ class SimAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
     override fun onDestroy() { super.onDestroy(); instance = null }
 
-    // ── Called by AlarmReceiver ───────────────────────────────────────────────
     fun performSimToggle(simName: String, turnOff: Boolean) {
-        if (state != State.IDLE) {
-            Log.w(TAG, "Already running — ignoring new request")
-            return
-        }
-
         pendingSimName = simName
         pendingTurnOff = turnOff
-        state = State.WAITING_FOR_SIM_LIST
-
-        Log.d(TAG, "🔄 Starting: $simName → ${if (turnOff) "OFF" else "ON"}")
-
-        // Open SIM & mobile network settings
+        isActive = true
+        attemptCount = 0
+        Log.d(TAG, "🔄 Request: $simName → ${if (turnOff) "OFF" else "ON"}")
         openSimSettings()
 
-        // Global timeout — give up after 30 seconds
+        // Timeout after 30 seconds
         handler.postDelayed({
-            if (state != State.IDLE && state != State.DONE) {
-                Log.w(TAG, "⏰ Timeout — force closing")
-                finishAndClose()
+            if (isActive) {
+                Log.w(TAG, "⏰ Timeout")
+                reset()
+                closeSettings()
             }
         }, 30_000)
     }
 
-    // ── React to screen changes ───────────────────────────────────────────────
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (state == State.IDLE || state == State.DONE) return
+        if (!isActive) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg != "com.android.settings") return
 
-        // Debounce — wait for screen to fully render
-        handler.removeCallbacksAndMessages("screen_ready")
-        handler.postDelayed({
-            when (state) {
-                State.WAITING_FOR_SIM_LIST    -> handleSimListScreen()
-                State.WAITING_FOR_SIM_DETAIL  -> handleSimDetailScreen()
-                State.WAITING_FOR_CONFIRMATION -> handleConfirmationDialog()
-                else -> {}
-            }
-        }, 600)
+        handler.removeCallbacksAndMessages(null)
+        handler.postDelayed({ processCurrentScreen() }, 800)
     }
 
-    // ── STEP 1: On SIM list screen — find and tap the right SIM ──────────────
-    private fun handleSimListScreen() {
+    // ── Main logic — runs every time screen updates ───────────────────────────
+    private fun processCurrentScreen() {
+        if (!isActive) return
         val root = rootInActiveWindow ?: return
-        val simName = pendingSimName ?: return
+        attemptCount++
 
-        Log.d(TAG, "📋 Looking at SIM list screen for: $simName")
+        Log.d(TAG, "--- Screen scan #$attemptCount ---")
 
-        // Check if we're already on the SIM detail page (has "Use this SIM" text)
-        val useSimNodes = root.findAccessibilityNodeInfosByText("Use this SIM")
-        if (useSimNodes.isNotEmpty()) {
-            Log.d(TAG, "Already on SIM detail page")
-            state = State.WAITING_FOR_SIM_DETAIL
-            handleSimDetailScreen()
-            return
-        }
+        // Dump ALL nodes to log so we can see what's on screen
+        dumpAllNodes(root, 0)
 
-        // Find the SIM name on the list and tap it to open its detail page
-        val simNodes = root.findAccessibilityNodeInfosByText(simName)
-        if (simNodes.isNotEmpty()) {
-            val simNode = simNodes[0]
-            Log.d(TAG, "Found '$simName' on list — tapping to open detail page")
+        // Strategy 1: Find "Use this SIM" text and click its row
+        if (tryClickUseThisSim(root)) return
 
-            // Try clicking the node itself or its parent row
-            var clicked = simNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            if (!clicked) {
-                clicked = simNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-            }
-            if (!clicked) {
-                clicked = simNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-            }
+        // Strategy 2: Find any Switch/Toggle and click it
+        if (tryClickAnySwitch(root)) return
 
-            if (clicked) {
-                state = State.WAITING_FOR_SIM_DETAIL
-                Log.d(TAG, "✅ Tapped SIM row — waiting for detail page")
-            } else {
-                Log.w(TAG, "❌ Could not tap SIM row — retrying")
-                handler.postDelayed({ handleSimListScreen() }, 800)
-            }
-        } else {
-            Log.w(TAG, "SIM '$simName' not found on screen — retrying")
-            handler.postDelayed({ handleSimListScreen() }, 1000)
+        // Strategy 3: Find confirmation dialog buttons
+        if (tryClickConfirmation(root)) return
+
+        Log.w(TAG, "Nothing actionable found on screen yet (attempt $attemptCount)")
+
+        // Give up after 10 attempts
+        if (attemptCount >= 10) {
+            Log.e(TAG, "❌ Giving up after $attemptCount attempts")
+            reset()
+            closeSettings()
         }
     }
 
-    // ── STEP 2: On SIM detail screen — click "Use this SIM" toggle ───────────
-    private fun handleSimDetailScreen() {
-        val root = rootInActiveWindow ?: return
-
-        Log.d(TAG, "📱 On SIM detail screen — looking for 'Use this SIM' toggle")
-
-        // Find "Use this SIM" text
-        val useSimTexts = listOf("Use this SIM", "Use this sim", "USE THIS SIM")
-        for (text in useSimTexts) {
-            val nodes = root.findAccessibilityNodeInfosByText(text)
-            if (nodes.isNotEmpty()) {
-                val useSimNode = nodes[0]
-                Log.d(TAG, "Found 'Use this SIM' text")
-
-                // Find the toggle/switch near this text
-                val toggle = findNearbyToggle(useSimNode)
-
-                if (toggle != null) {
-                    val isCurrentlyChecked = toggle.isChecked
-                    Log.d(TAG, "Toggle state: isChecked=$isCurrentlyChecked, wantOff=$pendingTurnOff")
-
-                    when {
-                        // Want OFF and currently ON → click to turn off
-                        pendingTurnOff && isCurrentlyChecked -> {
-                            Log.d(TAG, "Clicking toggle to turn OFF")
-                            val clicked = toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            if (!clicked) {
-                                // Try clicking the whole row instead
-                                useSimNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            }
-                            state = State.WAITING_FOR_CONFIRMATION
-                            Log.d(TAG, "✅ Toggle clicked — waiting for confirmation popup")
-                        }
-
-                        // Want ON and currently OFF → click to turn on
-                        !pendingTurnOff && !isCurrentlyChecked -> {
-                            Log.d(TAG, "Clicking toggle to turn ON")
-                            val clicked = toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            if (!clicked) {
-                                useSimNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            }
-                            // No confirmation needed for turning ON
-                            Log.d(TAG, "✅ SIM turned ON — closing")
-                            handler.postDelayed({ finishAndClose() }, 800)
-                        }
-
-                        // Already in desired state
-                        else -> {
-                            Log.d(TAG, "SIM already in desired state — nothing to do")
-                            finishAndClose()
-                        }
-                    }
-                    return
-                } else {
-                    // Toggle not found near text — try clicking the whole row
-                    Log.w(TAG, "Toggle not found near text — clicking row directly")
-                    val clicked = useSimNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-                    if (clicked) {
-                        state = State.WAITING_FOR_CONFIRMATION
-                    }
-                }
-                return
-            }
-        }
-
-        Log.w(TAG, "'Use this SIM' not found — still waiting")
-    }
-
-    // ── STEP 3: Auto-click the "Turn off" confirmation button ─────────────────
-    private fun handleConfirmationDialog() {
-        val root = rootInActiveWindow ?: return
-
-        Log.d(TAG, "🔔 Looking for confirmation dialog")
-
-        // All possible button texts in the confirmation dialog
-        val confirmButtonTexts = listOf(
-            "Turn off", "TURN OFF", "turn off",
-            "OK", "Ok", "YES", "Yes",
-            "Confirm", "Disable", "DISABLE"
+    // ── Strategy 1: Click "Use this SIM" row ─────────────────────────────────
+    private fun tryClickUseThisSim(root: AccessibilityNodeInfo): Boolean {
+        val searchTexts = listOf(
+            "Use this SIM", "Use this sim", "USE THIS SIM",
+            "Enable", "enable", "Active", "active"
         )
 
-        for (text in confirmButtonTexts) {
+        for (text in searchTexts) {
             val nodes = root.findAccessibilityNodeInfosByText(text)
-            for (node in nodes) {
-                // Make sure this is inside a dialog (not just any button)
-                val isInDialog = isInsideDialog(node)
-                val target = when {
-                    node.isClickable -> node
-                    node.parent?.isClickable == true -> node.parent
-                    else -> null
-                }
+            if (nodes.isEmpty()) continue
 
-                if (target != null) {
-                    val clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    if (clicked) {
-                        Log.d(TAG, "✅ Clicked confirmation button: '$text'")
-                        state = State.DONE
-                        handler.postDelayed({ finishAndClose() }, 800)
-                        return
+            Log.d(TAG, "Found text: '$text' — node count: ${nodes.size}")
+
+            for (textNode in nodes) {
+                // Log the node details
+                Log.d(TAG, "  TextNode: class=${textNode.className} clickable=${textNode.isClickable} checkable=${textNode.isCheckable} checked=${textNode.isChecked}")
+
+                // Find switch in same container
+                val switch = findSwitchNear(textNode)
+                if (switch != null) {
+                    val isOn = switch.isChecked
+                    Log.d(TAG, "  Switch found: isChecked=$isOn, wantOff=$pendingTurnOff")
+
+                    if ((pendingTurnOff && isOn) || (!pendingTurnOff && !isOn)) {
+                        // Need to toggle
+                        Log.d(TAG, "  Clicking switch...")
+                        var clicked = switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (!clicked) clicked = textNode.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+                        if (!clicked) clicked = textNode.parent?.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+
+                        Log.d(TAG, "  Click result: $clicked")
+                        if (clicked) {
+                            if (pendingTurnOff) {
+                                // Wait for confirmation dialog
+                                Log.d(TAG, "Waiting for confirmation popup...")
+                                attemptCount = 0 // Reset so confirmation gets full attempts
+                            } else {
+                                Log.d(TAG, "✅ SIM turned ON")
+                                reset()
+                                handler.postDelayed({ closeSettings() }, 500)
+                            }
+                            return true
+                        }
+                    } else {
+                        Log.d(TAG, "  Already in desired state — closing")
+                        reset()
+                        closeSettings()
+                        return true
+                    }
+                } else {
+                    // No switch found — try clicking the row directly
+                    Log.d(TAG, "  No switch found near text — clicking row")
+                    val row = findClickableParent(textNode)
+                    if (row != null) {
+                        val clicked = row.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        Log.d(TAG, "  Row click result: $clicked")
+                        if (clicked) return true
                     }
                 }
             }
         }
-
-        Log.w(TAG, "Confirmation dialog not found yet — retrying")
-        // It will be retried on next accessibility event
+        return false
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Strategy 2: Click any switch on screen ────────────────────────────────
+    private fun tryClickAnySwitch(root: AccessibilityNodeInfo): Boolean {
+        val switches = mutableListOf<AccessibilityNodeInfo>()
+        collectAllSwitches(root, switches)
 
-    private fun findNearbyToggle(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        // Walk up 5 levels looking for a Switch inside any container
-        var current = node
+        Log.d(TAG, "Total switches found: ${switches.size}")
+
+        if (switches.isEmpty()) return false
+
+        // If only 1 switch on screen — it's probably "Use this SIM"
+        if (switches.size == 1) {
+            val switch = switches[0]
+            val isOn = switch.isChecked
+            Log.d(TAG, "Single switch: isChecked=$isOn, wantOff=$pendingTurnOff class=${switch.className}")
+
+            if ((pendingTurnOff && isOn) || (!pendingTurnOff && !isOn)) {
+                val clicked = switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Log.d(TAG, "Single switch click: $clicked")
+                if (clicked) {
+                    if (!pendingTurnOff) {
+                        reset()
+                        handler.postDelayed({ closeSettings() }, 500)
+                    }
+                    return true
+                }
+            } else {
+                Log.d(TAG, "Switch already in desired state")
+                reset()
+                closeSettings()
+                return true
+            }
+        }
+
+        return false
+    }
+
+    // ── Strategy 3: Click confirmation dialog ────────────────────────────────
+    private fun tryClickConfirmation(root: AccessibilityNodeInfo): Boolean {
+        val buttonTexts = listOf(
+            "Turn off", "TURN OFF",
+            "OK", "Ok",
+            "Yes", "YES",
+            "Confirm", "Disable"
+        )
+
+        for (text in buttonTexts) {
+            val nodes = root.findAccessibilityNodeInfosByText(text)
+            for (node in nodes) {
+                Log.d(TAG, "Confirmation candidate: '$text' clickable=${node.isClickable}")
+                val target = if (node.isClickable) node else node.parent
+                if (target?.isClickable == true) {
+                    val clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Log.d(TAG, "Confirmation click '$text': $clicked")
+                    if (clicked) {
+                        Log.d(TAG, "✅ Confirmed! SIM turned OFF")
+                        reset()
+                        handler.postDelayed({ closeSettings() }, 800)
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    // ── Dump all nodes to log (for debugging) ────────────────────────────────
+    private fun dumpAllNodes(node: AccessibilityNodeInfo, depth: Int) {
+        val indent = "  ".repeat(depth)
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        val cls = node.className?.toString()?.substringAfterLast('.') ?: ""
+        val extra = buildString {
+            if (node.isClickable) append(" CLICKABLE")
+            if (node.isCheckable) append(" CHECKABLE")
+            if (node.isChecked) append(" CHECKED")
+            if (node.isEnabled) append(" ENABLED")
+        }
+
+        if (text.isNotEmpty() || desc.isNotEmpty() || node.isClickable || node.isCheckable) {
+            Log.d(TAG, "$indent[$cls]$extra text='$text' desc='$desc'")
+        }
+
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { dumpAllNodes(it, depth + 1) }
+        }
+    }
+
+    // ── Node helpers ──────────────────────────────────────────────────────────
+    private fun findSwitchNear(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node
         repeat(5) {
-            val switch = findSwitchInSubtree(current)
-            if (switch != null) return switch
-            current = current.parent ?: return null
+            current?.let { n ->
+                val found = findSwitchInSubtree(n)
+                if (found != null && found != node) return found
+            }
+            current = current?.parent
         }
         return null
     }
 
-    private fun findSwitchInSubtree(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val className = root.className?.toString() ?: ""
-        if (root.isCheckable || className.contains("Switch") || className.contains("Toggle")) {
-            return root
+    private fun findSwitchInSubtree(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val cls = node.className?.toString() ?: ""
+        if (node.isCheckable || cls.contains("Switch") || cls.contains("Toggle") || cls.contains("CompoundButton")) {
+            return node
         }
-        for (i in 0 until root.childCount) {
-            val found = findSwitchInSubtree(root.getChild(i) ?: continue)
+        for (i in 0 until node.childCount) {
+            val found = findSwitchInSubtree(node.getChild(i) ?: continue)
             if (found != null) return found
         }
         return null
     }
 
-    private fun isInsideDialog(node: AccessibilityNodeInfo): Boolean {
-        var current: AccessibilityNodeInfo? = node
-        repeat(8) {
-            val className = current?.className?.toString() ?: ""
-            if (className.contains("Dialog") || className.contains("Alert")) return true
+    private fun findClickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node.parent
+        repeat(5) {
+            if (current?.isClickable == true) return current
             current = current?.parent
         }
-        return true // Assume it's valid even if not found in a dialog
+        return null
+    }
+
+    private fun collectAllSwitches(node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>) {
+        val cls = node.className?.toString() ?: ""
+        if (node.isCheckable || cls.contains("Switch") || cls.contains("Toggle")) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { collectAllSwitches(it, result) }
+        }
     }
 
     private fun openSimSettings() {
-        val intentsToTry = listOf(
-            "android.settings.NETWORK_OPERATOR_SETTINGS",
-            android.provider.Settings.ACTION_WIRELESS_SETTINGS
-        )
-
-        for (action in intentsToTry) {
+        try {
+            val intent = Intent("android.settings.NETWORK_OPERATOR_SETTINGS").apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            }
+            startActivity(intent)
+            Log.d(TAG, "📂 Opened SIM settings")
+        } catch (e: Exception) {
             try {
-                val intent = Intent(action).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                val intent = Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
                 }
                 startActivity(intent)
-                Log.d(TAG, "📂 Opened settings with action: $action")
-                return
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed with $action: ${e.message}")
+            } catch (e2: Exception) {
+                Log.e(TAG, "Cannot open settings: ${e2.message}")
             }
         }
     }
 
-    private fun finishAndClose() {
-        Log.d(TAG, "🏁 Finishing — pressing back to close Settings")
+    private fun closeSettings() {
         performGlobalAction(GLOBAL_ACTION_BACK)
-        handler.postDelayed({
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            handler.postDelayed({
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }, 300)
-        }, 300)
+        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 300)
+        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 600)
+    }
 
-        // Reset state
-        state = State.IDLE
+    private fun reset() {
+        isActive = false
+        attemptCount = 0
         pendingSimName = null
         ScheduleRepository.clearPendingAction(applicationContext)
-        Log.d(TAG, "✅ All done — state reset to IDLE")
     }
 }
