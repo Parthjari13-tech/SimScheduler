@@ -30,7 +30,7 @@
             android:textColor="@color/text_secondary"
             android:layout_marginBottom="24dp" />
 
-        <!-- Permission Status Card -->
+        <!-- Permissions Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -106,13 +106,13 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- SIM 1 Header Row -->
+                <!-- SIM 1 Header -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="4dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -141,7 +141,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="SIM 1"
-                                android:textSize="18sp"
+                                android:textSize="17sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
                         </LinearLayout>
@@ -154,6 +154,17 @@
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
                             android:layout_marginTop="2dp" />
+
+                        <!-- Shows the exact name used for matching -->
+                        <TextView
+                            android:id="@+id/sim1ActualName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="11sp"
+                            android:textColor="@color/green"
+                            android:layout_marginTop="2dp"
+                            android:visibility="gone" />
                     </LinearLayout>
 
                     <Switch
@@ -173,42 +184,28 @@
                     android:orientation="vertical"
                     android:visibility="gone">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Turn OFF at"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginBottom="4dp" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="@color/divider" android:layout_marginVertical="8dp"/>
 
-                    <TimePicker
-                        android:id="@+id/sim1OffTimePicker"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:timePickerMode="spinner"
-                        android:layout_marginBottom="12dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="Turn OFF at" android:textSize="13sp"
+                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp" />
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="@color/divider"
-                        android:layout_marginBottom="12dp" />
+                    <TimePicker android:id="@+id/sim1OffTimePicker"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:timePickerMode="spinner" android:layout_marginBottom="12dp" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Turn ON at"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginBottom="4dp" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="@color/divider" android:layout_marginBottom="12dp" />
 
-                    <TimePicker
-                        android:id="@+id/sim1OnTimePicker"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="Turn ON at" android:textSize="13sp"
+                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp" />
+
+                    <TimePicker android:id="@+id/sim1OnTimePicker"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:timePickerMode="spinner" />
                 </LinearLayout>
-
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -229,13 +226,13 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- SIM 2 Header Row -->
+                <!-- SIM 2 Header -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="4dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -264,7 +261,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="SIM 2"
-                                android:textSize="18sp"
+                                android:textSize="17sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
                         </LinearLayout>
@@ -277,6 +274,17 @@
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
                             android:layout_marginTop="2dp" />
+
+                        <!-- Shows exact name used for matching -->
+                        <TextView
+                            android:id="@+id/sim2ActualName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="11sp"
+                            android:textColor="@color/green"
+                            android:layout_marginTop="2dp"
+                            android:visibility="gone" />
                     </LinearLayout>
 
                     <Switch
@@ -296,46 +304,31 @@
                     android:orientation="vertical"
                     android:visibility="gone">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Turn OFF at"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginBottom="4dp" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="@color/divider" android:layout_marginVertical="8dp"/>
 
-                    <TimePicker
-                        android:id="@+id/sim2OffTimePicker"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:timePickerMode="spinner"
-                        android:layout_marginBottom="12dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="Turn OFF at" android:textSize="13sp"
+                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp" />
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="@color/divider"
-                        android:layout_marginBottom="12dp" />
+                    <TimePicker android:id="@+id/sim2OffTimePicker"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:timePickerMode="spinner" android:layout_marginBottom="12dp" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Turn ON at"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginBottom="4dp" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="@color/divider" android:layout_marginBottom="12dp" />
 
-                    <TimePicker
-                        android:id="@+id/sim2OnTimePicker"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="Turn ON at" android:textSize="13sp"
+                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp" />
+
+                    <TimePicker android:id="@+id/sim2OnTimePicker"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:timePickerMode="spinner" />
                 </LinearLayout>
-
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Next Action Info -->
         <TextView
             android:id="@+id/nextActionLabel"
             android:layout_width="match_parent"
@@ -346,7 +339,15 @@
             android:gravity="center"
             android:layout_marginBottom="12dp" />
 
-        <!-- Save Button -->
+        <Button
+            android:id="@+id/refreshSimBtn"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="🔄 Refresh SIM Detection"
+            android:textSize="14sp"
+            android:backgroundTint="@color/text_secondary"
+            android:layout_marginBottom="8dp" />
+
         <Button
             android:id="@+id/saveButton"
             android:layout_width="match_parent"
