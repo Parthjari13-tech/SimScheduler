@@ -14,59 +14,47 @@ import com.simscheduler.util.AlarmScheduler
 
 class AlarmReceiver : BroadcastReceiver() {
 
-    companion object {
-        private const val TAG = "AlarmReceiver"
-    }
+    companion object { private const val TAG = "AlarmReceiver" }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val simName = intent.getStringExtra("sim_name") ?: return
+        // Now uses SLOT number — not SIM name
+        val simSlot = intent.getIntExtra("sim_slot", 0)
         val turnOff = intent.getBooleanExtra("turn_off", true)
 
-        Log.d(TAG, "⏰ Alarm fired: $simName → ${if (turnOff) "OFF" else "ON"}")
+        Log.d(TAG, "⏰ Alarm: slot=$simSlot turnOff=$turnOff")
 
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-
-        // FULL_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP:
-        // Turns the screen ON so Accessibility Service can read and interact
-        // with the Settings screen. Required for the automation to work.
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         @Suppress("DEPRECATION")
-        val wakeLock = powerManager.newWakeLock(
+        val wl = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK or
             PowerManager.ACQUIRE_CAUSES_WAKEUP or
             PowerManager.ON_AFTER_RELEASE,
-            "SimScheduler::ToggleWakeLock"
+            "SimScheduler::WakeLock"
         )
-        wakeLock.acquire(35_000L) // Hold for 35 seconds max
+        wl.acquire(35_000L)
 
-        // Wait 1 second for screen to fully wake up then trigger
         Handler(Looper.getMainLooper()).postDelayed({
-            val service = SimAccessibilityService.instance
-            if (service != null) {
-                Log.d(TAG, "🚀 Triggering accessibility service")
-                ScheduleRepository.setPendingAction(context, simName, turnOff)
-                service.performSimToggle(simName, turnOff)
+            ScheduleRepository.setPendingAction(context, simSlot, turnOff)
+
+            val svc = SimAccessibilityService.instance
+            if (svc != null) {
+                // Pass SLOT number — not name
+                svc.performSimToggle(simSlot, turnOff)
+                Log.d(TAG, "✅ Triggered for slot $simSlot")
             } else {
-                Log.e(TAG, "❌ Accessibility Service not running — user must enable it!")
+                Log.e(TAG, "❌ Accessibility Service not running")
             }
 
-            // Reschedule same alarm for next day
-            rescheduleForNextDay(context, simName, turnOff)
-
+            reschedule(context, simSlot, turnOff)
         }, 1000)
 
-        // Release wake lock after 33 seconds
         Handler(Looper.getMainLooper()).postDelayed({
-            if (wakeLock.isHeld) {
-                wakeLock.release()
-                Log.d(TAG, "🔓 WakeLock released")
-            }
+            if (wl.isHeld) wl.release()
         }, 33_000L)
     }
 
-    private fun rescheduleForNextDay(context: Context, simName: String, turnOff: Boolean) {
-        val schedules = loadSchedules(context)
-        val schedule = schedules.find { it.simName == simName } ?: return
+    private fun reschedule(context: Context, simSlot: Int, turnOff: Boolean) {
+        val schedule = loadSchedules(context).firstOrNull { it.simSlot == simSlot } ?: return
         AlarmScheduler.scheduleSimAlarms(context, schedule)
-        Log.d(TAG, "📅 Rescheduled for next day")
     }
 }
