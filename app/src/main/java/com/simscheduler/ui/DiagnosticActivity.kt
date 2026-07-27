@@ -6,12 +6,11 @@ import android.provider.Settings
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.simscheduler.service.SimAccessibilityService
-import com.simscheduler.util.SimDetector
 
 class DiagnosticActivity : AppCompatActivity() {
 
     private lateinit var logView: TextView
-    private lateinit var simNameInput: EditText
+    private lateinit var slotInput: EditText
     private val logs = StringBuilder()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,88 +29,47 @@ class DiagnosticActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 24)
         })
 
-        // ── Section 1: Auto Detected SIMs ────────────────────────────────────
+        // Info
         root.addView(TextView(this).apply {
-            text = "AUTO DETECTED SIMs"
-            textSize = 12f
-            setTextColor(0xFF888888.toInt())
+            text = "Test toggling SIM by slot number:\n" +
+                   "  Slot 0 = SIM 1 (first physical slot)\n" +
+                   "  Slot 1 = SIM 2 (second physical slot)"
+            textSize = 14f
+            setPadding(0, 0, 0, 24)
+        })
+
+        // Slot input
+        root.addView(TextView(this).apply {
+            text = "Enter SIM slot number to test:"
+            textSize = 14f
             setPadding(0, 0, 0, 8)
         })
 
-        val sims = SimDetector.detectSims(this)
-        if (sims.isEmpty()) {
-            root.addView(TextView(this).apply {
-                text = "❌ No SIMs detected — check READ_PHONE_STATE permission"
-                setTextColor(0xFFFF4444.toInt())
-                setPadding(0, 0, 0, 16)
-            })
-        } else {
-            sims.forEach { sim ->
-                root.addView(TextView(this).apply {
-                    text = "Slot ${sim.slot} (SIM ${sim.slot + 1}):\n" +
-                           "  Carrier: '${sim.carrierName}'\n" +
-                           "  Number:  ${sim.phoneNumber.ifEmpty { "unknown" }}"
-                    textSize = 14f
-                    setBackgroundColor(0xFFE8F5E9.toInt())
-                    setPadding(16, 12, 16, 12)
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 0, 0, 8) }
-                })
-
-                // Show ALL candidate names for this SIM
-                val candidates = SimDetector.getAllCandidatesForSlot(this, sim.slot)
-                root.addView(TextView(this).apply {
-                    text = "  All name sources for Slot ${sim.slot}:\n" +
-                           candidates.entries.joinToString("\n") { (k, v) -> "    $k = '$v'" }
-                    textSize = 11f
-                    setTextColor(0xFF555555.toInt())
-                    setTypeface(null, android.graphics.Typeface.ITALIC)
-                    setPadding(0, 0, 0, 16)
-                })
-            }
-        }
-
-        // ── Section 2: Manual Test ────────────────────────────────────────────
-        root.addView(TextView(this).apply {
-            text = "MANUAL TEST"
-            textSize = 12f
-            setTextColor(0xFF888888.toInt())
-            setPadding(0, 8, 0, 8)
-        })
-
-        root.addView(TextView(this).apply {
-            text = "Enter the exact SIM name shown in\nSettings → SIMs & mobile network:"
-            textSize = 13f
-            setPadding(0, 0, 0, 8)
-        })
-
-        simNameInput = EditText(this).apply {
-            hint = "e.g. Jio  or  LycaMobile"
-            textSize = 16f
+        slotInput = EditText(this).apply {
+            hint = "0 = SIM 1,  1 = SIM 2"
+            textSize = 18f
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText("1") // Default to SIM 2
             setPadding(16, 12, 16, 12)
-            // Pre-fill with first detected SIM name
-            sims.firstOrNull()?.let { setText(it.carrierName) }
         }
-        root.addView(simNameInput)
+        root.addView(slotInput)
 
         // Test buttons
         root.addView(Button(this).apply {
-            text = "▶ TEST Turn OFF this SIM"
+            text = "▶ TEST: Turn OFF this SIM slot"
             setBackgroundColor(0xFFD32F2F.toInt())
             setTextColor(0xFFFFFFFF.toInt())
-            setOnClickListener { testToggle(true) }
+            setOnClickListener { testToggle(turnOff = true) }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 120
             ).apply { setMargins(0, 16, 0, 8) }
         })
 
         root.addView(Button(this).apply {
-            text = "▶ TEST Turn ON this SIM"
+            text = "▶ TEST: Turn ON this SIM slot"
             setBackgroundColor(0xFF388E3C.toInt())
             setTextColor(0xFFFFFFFF.toInt())
-            setOnClickListener { testToggle(false) }
+            setOnClickListener { testToggle(turnOff = false) }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 120
             ).apply { setMargins(0, 0, 0, 8) }
@@ -119,14 +77,14 @@ class DiagnosticActivity : AppCompatActivity() {
 
         // Open Settings button
         root.addView(Button(this).apply {
-            text = "📱 Open SIM Settings (to check exact name)"
+            text = "📱 Open SIM Settings"
             setOnClickListener { openSimSettings() }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 100
             ).apply { setMargins(0, 0, 0, 16) }
         })
 
-        // ── Section 3: Log Output ─────────────────────────────────────────────
+        // Log output
         root.addView(TextView(this).apply {
             text = "LOG OUTPUT"
             textSize = 12f
@@ -136,12 +94,13 @@ class DiagnosticActivity : AppCompatActivity() {
 
         logView = TextView(this).apply {
             text = "Tap a test button to see results here...\n" +
-                   "Also check Logcat → filter by 'SimDetector' or 'SimSvc'"
+                   "Also check Logcat → filter by tag: SimSvc"
             textSize = 12f
             setTextColor(0xFF00FF00.toInt())
             setBackgroundColor(0xFF1E1E1E.toInt())
             setPadding(16, 16, 16, 16)
         }
+
         val scroll = ScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 300
@@ -154,18 +113,19 @@ class DiagnosticActivity : AppCompatActivity() {
         mainScroll.addView(root)
         setContentView(mainScroll)
 
-        // Log detected SIMs immediately
-        appendLog("=== SIM Detection Results ===")
-        sims.forEach { sim ->
-            appendLog("Slot ${sim.slot}: '${sim.carrierName}' ${sim.phoneNumber}")
-        }
-        appendLog("============================")
+        appendLog("Diagnostic tool ready")
+        appendLog("Accessibility service: ${
+            if (SimAccessibilityService.instance != null) "✅ Running"
+            else "❌ Not running"
+        }")
     }
 
     private fun testToggle(turnOff: Boolean) {
-        val name = simNameInput.text.toString().trim()
-        if (name.isEmpty()) {
-            appendLog("❌ Please enter a SIM name")
+        val slotText = slotInput.text.toString().trim()
+        val slot = slotText.toIntOrNull()
+
+        if (slot == null || slot !in 0..1) {
+            appendLog("❌ Enter 0 (SIM 1) or 1 (SIM 2)")
             return
         }
 
@@ -176,16 +136,15 @@ class DiagnosticActivity : AppCompatActivity() {
             return
         }
 
-        appendLog("▶ Testing: '$name' → ${if (turnOff) "OFF" else "ON"}")
-        appendLog("Watch the screen and Logcat...")
-        SimAccessibilityService.diagnosticMode = false
-        service.performSimToggle(name, turnOff)
+        appendLog("▶ Testing slot $slot → ${if (turnOff) "OFF" else "ON"}")
+        appendLog("Watch the screen...")
+
+        // Now passes INT slot, not String name
+        service.performSimToggle(slot, turnOff)
     }
 
     private fun openSimSettings() {
         appendLog("Opening SIM Settings...")
-        appendLog("Note the EXACT name shown for each SIM")
-        appendLog("Then type it in the input field above")
         try {
             startActivity(Intent("android.settings.NETWORK_OPERATOR_SETTINGS").apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
