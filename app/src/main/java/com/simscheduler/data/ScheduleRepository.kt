@@ -2,90 +2,86 @@ package com.simscheduler.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class SimSchedule(
-    val simSlot: Int,           // 0 = SIM 1, 1 = SIM 2
-    val simName: String,        // e.g. "Jio", "LycaMobile"
-    val simNumber: String,      // phone number
-    val offHour: Int,           // hour to turn OFF (24h)
+    val simSlot: Int,       // 0 = SIM 1, 1 = SIM 2
+    val simLabel: String,   // Display label e.g. "SIM 1" or "SIM 2"
+    val offHour: Int,
     val offMinute: Int,
-    val onHour: Int,            // hour to turn ON (24h)
+    val onHour: Int,
     val onMinute: Int,
-    val isEnabled: Boolean      // schedule active or not
+    val isEnabled: Boolean
 ) {
-    fun toJson(): JSONObject = JSONObject().apply {
-        put("simSlot", simSlot)
-        put("simName", simName)
-        put("simNumber", simNumber)
-        put("offHour", offHour)
-        put("offMinute", offMinute)
-        put("onHour", onHour)
-        put("onMinute", onMinute)
-        put("isEnabled", isEnabled)
+    fun toJson() = JSONObject().apply {
+        put("simSlot",    simSlot)
+        put("simLabel",   simLabel)
+        put("offHour",    offHour)
+        put("offMinute",  offMinute)
+        put("onHour",     onHour)
+        put("onMinute",   onMinute)
+        put("isEnabled",  isEnabled)
     }
 
     companion object {
-        fun fromJson(json: JSONObject) = SimSchedule(
-            simSlot = json.getInt("simSlot"),
-            simName = json.getString("simName"),
-            simNumber = json.optString("simNumber", ""),
-            offHour = json.getInt("offHour"),
-            offMinute = json.getInt("offMinute"),
-            onHour = json.getInt("onHour"),
-            onMinute = json.getInt("onMinute"),
-            isEnabled = json.getBoolean("isEnabled")
+        fun fromJson(j: JSONObject) = SimSchedule(
+            simSlot   = j.getInt("simSlot"),
+            simLabel  = j.optString("simLabel", "SIM ${j.getInt("simSlot") + 1}"),
+            offHour   = j.getInt("offHour"),
+            offMinute = j.getInt("offMinute"),
+            onHour    = j.getInt("onHour"),
+            onMinute  = j.getInt("onMinute"),
+            isEnabled = j.getBoolean("isEnabled")
         )
     }
 }
 
 object ScheduleRepository {
 
-    private const val PREFS_NAME = "sim_schedules"
-    private const val KEY_SCHEDULES = "schedules"
+    private const val PREFS  = "sim_schedules"
+    private const val KEY    = "schedules"
 
     fun saveSchedules(context: Context, schedules: List<SimSchedule>) {
-        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val jsonArray = org.json.JSONArray()
-        schedules.forEach { jsonArray.put(it.toJson()) }
-        prefs.edit().putString(KEY_SCHEDULES, jsonArray.toString()).apply()
+        val arr = JSONArray()
+        schedules.forEach { arr.put(it.toJson()) }
+        prefs(context).edit().putString(KEY, arr.toString()).apply()
     }
 
     fun loadSchedules(context: Context): List<SimSchedule> {
-        val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val raw = prefs.getString(KEY_SCHEDULES, null) ?: return emptyList()
+        val raw = prefs(context).getString(KEY, null) ?: return emptyList()
         return try {
-            val jsonArray = org.json.JSONArray(raw)
-            (0 until jsonArray.length()).map { SimSchedule.fromJson(jsonArray.getJSONObject(it)) }
-        } catch (e: Exception) {
-            emptyList()
-        }
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { SimSchedule.fromJson(arr.getJSONObject(it)) }
+        } catch (e: Exception) { emptyList() }
     }
 
-    // Store the pending action for AccessibilityService to pick up
-    fun setPendingAction(context: Context, simName: String, turnOff: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("pending_sim_name", simName)
-            .putBoolean("pending_turn_off", turnOff)
-            .putLong("pending_timestamp", System.currentTimeMillis())
+    fun setPendingAction(context: Context, simSlot: Int, turnOff: Boolean) {
+        prefs(context).edit()
+            .putInt("pending_slot",     simSlot)
+            .putBoolean("pending_off",  turnOff)
+            .putLong("pending_ts",      System.currentTimeMillis())
             .apply()
     }
 
-    fun getPendingAction(context: Context): Triple<String, Boolean, Long>? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val name = prefs.getString("pending_sim_name", null) ?: return null
-        val turnOff = prefs.getBoolean("pending_turn_off", true)
-        val timestamp = prefs.getLong("pending_timestamp", 0L)
-        return Triple(name, turnOff, timestamp)
+    fun getPendingAction(context: Context): Triple<Int, Boolean, Long>? {
+        val p = prefs(context)
+        if (!p.contains("pending_slot")) return null
+        return Triple(
+            p.getInt("pending_slot", 0),
+            p.getBoolean("pending_off", true),
+            p.getLong("pending_ts", 0L)
+        )
     }
 
     fun clearPendingAction(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .remove("pending_sim_name")
-            .remove("pending_turn_off")
-            .remove("pending_timestamp")
+        prefs(context).edit()
+            .remove("pending_slot")
+            .remove("pending_off")
+            .remove("pending_ts")
             .apply()
     }
+
+    private fun prefs(context: Context): SharedPreferences =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
