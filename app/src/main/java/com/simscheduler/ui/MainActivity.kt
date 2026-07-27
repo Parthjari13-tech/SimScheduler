@@ -146,6 +146,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Refresh SIM detection
+        binding.diagnosticBtn.setOnClickListener {
+            startActivity(Intent(this, DiagnosticActivity::class.java))
+        }
+
         binding.refreshSimBtn.setOnClickListener {
             detectAndDisplaySims()
             Toast.makeText(this, "SIM info refreshed", Toast.LENGTH_SHORT).show()
