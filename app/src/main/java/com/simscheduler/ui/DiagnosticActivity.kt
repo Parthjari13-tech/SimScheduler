@@ -21,7 +21,6 @@ class DiagnosticActivity : AppCompatActivity() {
             setPadding(32, 48, 32, 32)
         }
 
-        // Title
         root.addView(TextView(this).apply {
             text = "🔧 SIM Diagnostic Tool"
             textSize = 22f
@@ -29,16 +28,14 @@ class DiagnosticActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 24)
         })
 
-        // Info
         root.addView(TextView(this).apply {
             text = "Test toggling SIM by slot number:\n" +
-                   "  Slot 0 = SIM 1 (first physical slot)\n" +
-                   "  Slot 1 = SIM 2 (second physical slot)"
+                   "  0 = SIM 1 (first physical slot)\n" +
+                   "  1 = SIM 2 (second physical slot)"
             textSize = 14f
             setPadding(0, 0, 0, 24)
         })
 
-        // Slot input
         root.addView(TextView(this).apply {
             text = "Enter SIM slot number to test:"
             textSize = 14f
@@ -49,12 +46,11 @@ class DiagnosticActivity : AppCompatActivity() {
             hint = "0 = SIM 1,  1 = SIM 2"
             textSize = 18f
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText("1") // Default to SIM 2
+            setText("1")
             setPadding(16, 12, 16, 12)
         }
         root.addView(slotInput)
 
-        // Test buttons
         root.addView(Button(this).apply {
             text = "▶ TEST: Turn OFF this SIM slot"
             setBackgroundColor(0xFFD32F2F.toInt())
@@ -75,7 +71,6 @@ class DiagnosticActivity : AppCompatActivity() {
             ).apply { setMargins(0, 0, 0, 8) }
         })
 
-        // Open Settings button
         root.addView(Button(this).apply {
             text = "📱 Open SIM Settings"
             setOnClickListener { openSimSettings() }
@@ -84,7 +79,6 @@ class DiagnosticActivity : AppCompatActivity() {
             ).apply { setMargins(0, 0, 0, 16) }
         })
 
-        // Log output
         root.addView(TextView(this).apply {
             text = "LOG OUTPUT"
             textSize = 12f
@@ -93,8 +87,8 @@ class DiagnosticActivity : AppCompatActivity() {
         })
 
         logView = TextView(this).apply {
-            text = "Tap a test button to see results here...\n" +
-                   "Also check Logcat → filter by tag: SimSvc"
+            text = "Tap a test button to see results...\n" +
+                   "Also check Logcat → filter tag: SimSvc"
             textSize = 12f
             setTextColor(0xFF00FF00.toInt())
             setBackgroundColor(0xFF1E1E1E.toInt())
@@ -113,7 +107,6 @@ class DiagnosticActivity : AppCompatActivity() {
         mainScroll.addView(root)
         setContentView(mainScroll)
 
-        appendLog("Diagnostic tool ready")
         appendLog("Accessibility service: ${
             if (SimAccessibilityService.instance != null) "✅ Running"
             else "❌ Not running"
@@ -121,8 +114,7 @@ class DiagnosticActivity : AppCompatActivity() {
     }
 
     private fun testToggle(turnOff: Boolean) {
-        val slotText = slotInput.text.toString().trim()
-        val slot = slotText.toIntOrNull()
+        val slot = slotInput.text.toString().trim().toIntOrNull()
 
         if (slot == null || slot !in 0..1) {
             appendLog("❌ Enter 0 (SIM 1) or 1 (SIM 2)")
@@ -132,15 +124,13 @@ class DiagnosticActivity : AppCompatActivity() {
         val service = SimAccessibilityService.instance
         if (service == null) {
             appendLog("❌ Accessibility Service not running!")
-            appendLog("   Go to Settings → Accessibility → SIM Scheduler → ON")
             return
         }
 
-        appendLog("▶ Testing slot $slot → ${if (turnOff) "OFF" else "ON"}")
+        appendLog("▶ slot=$slot → ${if (turnOff) "OFF" else "ON"}")
         appendLog("Watch the screen...")
 
-        // Now passes INT slot, not String name
-        service.performSimToggle(slot, turnOff)
+        service.start(slot, turnOff)   // ← renamed from performSimToggle to start
     }
 
     private fun openSimSettings() {
