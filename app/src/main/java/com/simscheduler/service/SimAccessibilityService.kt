@@ -2,20 +2,31 @@ package com.simscheduler.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.app.NotificationCompat
+import com.simscheduler.R
 import com.simscheduler.data.ScheduleRepository
+import com.simscheduler.ui.MainActivity
 
 class SimAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SimSvc"
+        private const val CHANNEL_ID = "sim_scheduler_channel"
+        private const val NOTIF_ID = 1001
+
         var instance: SimAccessibilityService? = null
 
         fun triggerSimToggle(simSlot: Int, turnOff: Boolean) {
@@ -29,12 +40,11 @@ class SimAccessibilityService : AccessibilityService() {
     private var active = false
 
     private enum class Step {
-        OPEN_SETTINGS,          // Step 1: Waiting for main Settings page
-        FIND_SIM_MENU,          // Step 2: Find and tap SIM/Network menu item
-        TOGGLE_SIM_SWITCH,      // Step 3: On SIM list — tap correct switch by index
-        CONFIRM_POPUP           // Step 4: Click "Turn off" confirmation
+        FIND_SIM_MENU,
+        TOGGLE_SIM_SWITCH,
+        CONFIRM_POPUP
     }
-    private var step = Step.OPEN_SETTINGS
+    private var step = Step.FIND_SIM_MENU
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -47,6 +57,7 @@ class SimAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             notificationTimeout = 50
         }
+        createNotificationChannel()
         Log.d(TAG, "✅ Service connected")
     }
 
@@ -58,16 +69,28 @@ class SimAccessibilityService : AccessibilityService() {
         targetSlot = simSlot
         wantOff    = turnOff
         active     = true
-        step       = Step.OPEN_SETTINGS
+        step       = Step.FIND_SIM_MENU
 
         Log.d(TAG, "▶ Start: slot=$simSlot wantOff=$turnOff")
 
-        // Open TOP LEVEL Settings — not SIM settings directly
-        // This avoids the problem of intent opening SIM 1 directly
+        // Show "working" notification immediately
+        showWorkingNotification(simSlot, turnOff)
+
+        // Open main Settings in background
         openMainSettings()
 
+        // Timeout after 30 seconds
         handler.postDelayed({
-            if (active) { Log.w(TAG, "⏰ Timeout"); done() }
+            if (active) {
+                Log.w(TAG, "⏰ Timeout")
+                showResultNotification(
+                    simSlot = simSlot,
+                    turnOff = turnOff,
+                    success = false,
+                    reason  = "Timeout — Settings did not respond"
+                )
+                done()
+            }
         }, 30_000)
     }
 
@@ -76,12 +99,10 @@ class SimAccessibilityService : AccessibilityService() {
         if (!active) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg != "com.android.settings") return
-
         handler.removeCallbacksAndMessages(null)
         handler.postDelayed({ handleScreen() }, 700)
     }
 
-    // ── Decide what to do based on current step ───────────────────────────────
     private fun handleScreen() {
         if (!active) return
         val root = rootInActiveWindow ?: return
@@ -89,47 +110,24 @@ class SimAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Step=$step | Texts=$texts")
 
         when (step) {
-            Step.OPEN_SETTINGS,
-            Step.FIND_SIM_MENU    -> findAndTapSimMenu(root, texts)
+            Step.FIND_SIM_MENU     -> findAndTapSimMenu(root, texts)
             Step.TOGGLE_SIM_SWITCH -> toggleCorrectSimSwitch(root)
-            Step.CONFIRM_POPUP    -> clickConfirmation(root)
+            Step.CONFIRM_POPUP     -> clickConfirmation(root)
         }
     }
 
-    // ── STEP 1 & 2: Find "SIM" menu item in Settings and tap it ──────────────
-    // This navigates from main Settings → SIM list page
-    // Avoids the bug of opening SIM 1 detail page directly
+    // ── STEP 1: Find SIM menu and tap it ─────────────────────────────────────
     private fun findAndTapSimMenu(root: AccessibilityNodeInfo, texts: List<String>) {
-
-        // Check if we already reached the SIM list page
-        // SIM list page has MULTIPLE switches (one per SIM)
         val allSwitches = getAllSwitches(root)
-        Log.d(TAG, "Switches on screen: ${allSwitches.size}")
+        Log.d(TAG, "Switches: ${allSwitches.size}")
 
         if (allSwitches.size >= 2) {
-            // We're on SIM list — has 2 switches (SIM 1 and SIM 2)
-            Log.d(TAG, "✅ SIM list detected (${allSwitches.size} switches)")
+            Log.d(TAG, "✅ SIM list detected")
             step = Step.TOGGLE_SIM_SWITCH
             toggleCorrectSimSwitch(root)
             return
         }
 
-        if (allSwitches.size == 1) {
-            // Only 1 switch — might be on SIM detail page or single SIM setting
-            // Check if "SIM cards" heading is visible (list page)
-            val onListPage = texts.any {
-                it.contains("SIM cards", true) ||
-                it.contains("SIMs & mobile", true)
-            }
-            if (onListPage) {
-                // List page but only 1 switch found yet — wait for full render
-                Log.d(TAG, "List page loading — retrying")
-                handler.postDelayed({ handleScreen() }, 500)
-                return
-            }
-        }
-
-        // Look for SIM-related menu items to tap
         val simMenuKeywords = listOf(
             "SIMs & mobile network",
             "SIM & mobile network",
@@ -143,102 +141,167 @@ class SimAccessibilityService : AccessibilityService() {
         for (keyword in simMenuKeywords) {
             val nodes = root.findAccessibilityNodeInfosByText(keyword)
             if (nodes.isNotEmpty()) {
-                val node = nodes[0]
-                val clickable = findClickableParent(node) ?: node
+                val clickable = findClickableParent(nodes[0]) ?: nodes[0]
                 val clicked = clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                Log.d(TAG, "Tapped menu '$keyword': clicked=$clicked")
+                Log.d(TAG, "Tapped '$keyword': $clicked")
                 if (clicked) {
                     step = Step.FIND_SIM_MENU
                     return
                 }
             }
         }
-
-        Log.w(TAG, "SIM menu not found — texts: $texts")
+        Log.w(TAG, "SIM menu not found")
     }
 
-    // ── STEP 3: On SIM list — tap the CORRECT switch by position index ────────
-    // SIM 1 = topmost switch on screen
-    // SIM 2 = second switch from top
-    // No name matching needed — purely position based
+    // ── STEP 2: Toggle correct SIM switch by index ────────────────────────────
     private fun toggleCorrectSimSwitch(root: AccessibilityNodeInfo) {
         val allSwitches = getAllSwitches(root)
-        Log.d(TAG, "Switches found: ${allSwitches.size}")
+        Log.d(TAG, "Switches count: ${allSwitches.size}")
 
         allSwitches.forEachIndexed { i, sw ->
-            val b = Rect()
-            sw.getBoundsInScreen(b)
-            Log.d(TAG, "  Switch[$i]: top=${b.top} checked=${sw.isChecked}")
+            val b = Rect(); sw.getBoundsInScreen(b)
+            Log.d(TAG, "  Switch[$i] top=${b.top} checked=${sw.isChecked}")
         }
 
-        if (allSwitches.isEmpty()) {
-            Log.w(TAG, "No switches found — retrying")
-            return
-        }
-
-        // Pick switch by slot index
         val targetSwitch = allSwitches.getOrNull(targetSlot)
-
         if (targetSwitch == null) {
-            Log.w(TAG, "Switch for slot $targetSlot not found in ${allSwitches.size} switches")
-            // If only 1 switch and targeting slot 1 — might be wrong page
-            // Go back and retry
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            step = Step.FIND_SIM_MENU
+            Log.w(TAG, "Switch for slot $targetSlot not found")
+            showResultNotification(targetSlot, wantOff, false, "SIM switch not found on screen")
+            done()
             return
         }
 
         val isOn = targetSwitch.isChecked
-        Log.d(TAG, "Target switch[slot=$targetSlot] isOn=$isOn wantOff=$wantOff")
+        Log.d(TAG, "Switch[slot=$targetSlot] isOn=$isOn wantOff=$wantOff")
 
         when {
             wantOff && isOn -> {
-                // Need to turn OFF — click the switch
-                val clicked = targetSwitch.performAction(
-                    AccessibilityNodeInfo.ACTION_CLICK)
+                val clicked = targetSwitch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 Log.d(TAG, "Clicked to turn OFF: $clicked")
                 if (clicked) step = Step.CONFIRM_POPUP
             }
             !wantOff && !isOn -> {
-                // Need to turn ON — click the switch
-                val clicked = targetSwitch.performAction(
-                    AccessibilityNodeInfo.ACTION_CLICK)
+                val clicked = targetSwitch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 Log.d(TAG, "Clicked to turn ON: $clicked")
-                // No confirmation needed for ON
-                if (clicked) handler.postDelayed({ done() }, 500)
+                if (clicked) {
+                    // No confirmation for turning ON
+                    showResultNotification(targetSlot, wantOff, true, null)
+                    handler.postDelayed({ done() }, 500)
+                }
             }
             else -> {
-                // Already in desired state
-                Log.d(TAG, "Already in desired state")
+                val state = if (isOn) "already ON" else "already OFF"
+                Log.d(TAG, "SIM $state — no action needed")
+                showResultNotification(targetSlot, wantOff, true, "Was $state")
                 done()
             }
         }
     }
 
-    // ── STEP 4: Click "Turn off" confirmation popup ───────────────────────────
+    // ── STEP 3: Click confirmation popup ─────────────────────────────────────
     private fun clickConfirmation(root: AccessibilityNodeInfo) {
-        Log.d(TAG, "Looking for confirmation button")
-
         listOf("Turn off", "TURN OFF", "OK", "Ok", "Yes", "YES").forEach { text ->
             root.findAccessibilityNodeInfosByText(text).forEach { node ->
                 val target = if (node.isClickable) node
-                             else node.parent?.takeIf { it.isClickable }
-                             ?: return@forEach
+                             else node.parent?.takeIf { it.isClickable } ?: return@forEach
                 val clicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 Log.d(TAG, "Confirmation '$text': $clicked")
                 if (clicked) {
                     Log.d(TAG, "✅ SIM slot $targetSlot toggled!")
+                    showResultNotification(targetSlot, wantOff, true, null)
                     handler.postDelayed({ done() }, 600)
                     return
                 }
             }
         }
-        Log.w(TAG, "Confirmation not found yet")
+        Log.w(TAG, "Confirmation button not found yet")
     }
 
-    // ── Open TOP LEVEL Settings (not SIM settings) ────────────────────────────
-    // This is the key fix — we start from main Settings
-    // and navigate down ourselves instead of jumping to SIM page directly
+    // ── Notifications ─────────────────────────────────────────────────────────
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "SIM Scheduler",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "SIM toggle notifications"
+                enableVibration(true)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    // Shows "Working..." notification while Settings is being automated
+    private fun showWorkingNotification(simSlot: Int, turnOff: Boolean) {
+        val simLabel = "SIM ${simSlot + 1}"
+        val action   = if (turnOff) "Turning OFF" else "Turning ON"
+
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("⏳ $action $simLabel...")
+            .setContentText("Please wait — automating Settings")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)         // Can't be dismissed while working
+            .setAutoCancel(false)
+            .build()
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, notif)
+    }
+
+    // Shows result notification after toggle completes
+    private fun showResultNotification(
+        simSlot: Int,
+        turnOff: Boolean,
+        success: Boolean,
+        reason: String?
+    ) {
+        val simLabel = "SIM ${simSlot + 1}"
+        val action   = if (turnOff) "OFF" else "ON"
+
+        val title = if (success) {
+            "✅ $simLabel turned $action"
+        } else {
+            "❌ Failed to turn $simLabel $action"
+        }
+
+        val body = when {
+            success && reason != null -> reason
+            success                   -> "$simLabel is now $action"
+            reason != null            -> "Reason: $reason"
+            else                      -> "Please try again"
+        }
+
+        // Tap notification → open app
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(
+                if (success) android.R.drawable.ic_dialog_info
+                else         android.R.drawable.ic_dialog_alert
+            )
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setVibrate(longArrayOf(0, 300, 100, 300))
+            .build()
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, notif)
+    }
+
+    // ── Open main Settings ────────────────────────────────────────────────────
     private fun openMainSettings() {
         try {
             startActivity(Intent(Settings.ACTION_SETTINGS).apply {
@@ -252,40 +315,26 @@ class SimAccessibilityService : AccessibilityService() {
         }
     }
 
-    // ── Get ALL switches on screen sorted top to bottom ───────────────────────
-    // TOP switch    = SIM 1 (slot 0)
-    // SECOND switch = SIM 2 (slot 1)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private fun getAllSwitches(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val result = mutableListOf<AccessibilityNodeInfo>()
         collectSwitches(root, result)
-
-        // Sort by Y position — topmost first
         result.sortBy { node ->
-            val bounds = Rect()
-            node.getBoundsInScreen(bounds)
-            bounds.top
+            val b = Rect(); node.getBoundsInScreen(b); b.top
         }
-
         return result
     }
 
-    private fun collectSwitches(
-        node: AccessibilityNodeInfo,
-        result: MutableList<AccessibilityNodeInfo>
-    ) {
+    private fun collectSwitches(node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>) {
         val cls = node.className?.toString() ?: ""
-        if (node.isCheckable ||
-            cls.contains("Switch") ||
-            cls.contains("Toggle") ||
-            cls.contains("CompoundButton")) {
+        if (node.isCheckable || cls.contains("Switch") ||
+            cls.contains("Toggle") || cls.contains("CompoundButton")) {
             result.add(node)
         }
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectSwitches(it, result) }
-        }
+        for (i in 0 until node.childCount) node.getChild(i)?.let { collectSwitches(it, result) }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
     private fun getTexts(root: AccessibilityNodeInfo): List<String> {
         val result = mutableListOf<String>()
         collectTexts(root, result)
@@ -294,17 +343,12 @@ class SimAccessibilityService : AccessibilityService() {
 
     private fun collectTexts(node: AccessibilityNodeInfo, result: MutableList<String>) {
         node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { result.add(it) }
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectTexts(it, result) }
-        }
+        for (i in 0 until node.childCount) node.getChild(i)?.let { collectTexts(it, result) }
     }
 
     private fun findClickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         var n: AccessibilityNodeInfo? = node
-        repeat(6) {
-            if (n?.isClickable == true) return n
-            n = n?.parent
-        }
+        repeat(6) { if (n?.isClickable == true) return n; n = n?.parent }
         return null
     }
 
