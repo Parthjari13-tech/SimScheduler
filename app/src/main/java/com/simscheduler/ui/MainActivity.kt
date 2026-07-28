@@ -1,14 +1,17 @@
 package com.simscheduler.ui
 
+import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.simscheduler.R
@@ -23,6 +26,20 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    // Notification permission launcher (Android 13+)
+    private val notifPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Toast.makeText(this, "✅ Notifications enabled", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this,
+                "⚠️ Notifications denied — you won't see SIM toggle results",
+                Toast.LENGTH_LONG).show()
+        }
+        updateNotifPermissionStatus()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -31,23 +48,21 @@ class MainActivity : AppCompatActivity() {
         setupSimCards()
         loadSavedSchedules()
         setupButtons()
+        requestNotificationPermissionIfNeeded()
     }
 
     override fun onResume() {
         super.onResume()
         updateAccessibilityStatus()
         updateAlarmPermissionStatus()
+        updateNotifPermissionStatus()
     }
 
-    // ── Setup SIM cards — simple slot based, no name detection ───────────────
     private fun setupSimCards() {
-        // SIM 1 — always slot 0
-        binding.sim1Name.text   = "SIM 1"
-        binding.sim1Slot.text   = "Slot 1 (First SIM card)"
-
-        // SIM 2 — always slot 1
-        binding.sim2Name.text   = "SIM 2"
-        binding.sim2Slot.text   = "Slot 2 (Second SIM card)"
+        binding.sim1Name.text = "SIM 1"
+        binding.sim1Slot.text = "Slot 1 — First SIM card"
+        binding.sim2Name.text = "SIM 2"
+        binding.sim2Slot.text = "Slot 2 — Second SIM card"
         binding.sim2Card.visibility = View.VISIBLE
     }
 
@@ -55,20 +70,20 @@ class MainActivity : AppCompatActivity() {
         ScheduleRepository.loadSchedules(this).forEach { s ->
             when (s.simSlot) {
                 0 -> {
-                    binding.sim1Toggle.isChecked      = s.isEnabled
-                    binding.sim1OffPicker.hour        = s.offHour
-                    binding.sim1OffPicker.minute      = s.offMinute
-                    binding.sim1OnPicker.hour         = s.onHour
-                    binding.sim1OnPicker.minute       = s.onMinute
+                    binding.sim1Toggle.isChecked = s.isEnabled
+                    binding.sim1OffPicker.hour   = s.offHour
+                    binding.sim1OffPicker.minute = s.offMinute
+                    binding.sim1OnPicker.hour    = s.onHour
+                    binding.sim1OnPicker.minute  = s.onMinute
                     binding.sim1ScheduleContent.visibility =
                         if (s.isEnabled) View.VISIBLE else View.GONE
                 }
                 1 -> {
-                    binding.sim2Toggle.isChecked      = s.isEnabled
-                    binding.sim2OffPicker.hour        = s.offHour
-                    binding.sim2OffPicker.minute      = s.offMinute
-                    binding.sim2OnPicker.hour         = s.onHour
-                    binding.sim2OnPicker.minute       = s.onMinute
+                    binding.sim2Toggle.isChecked = s.isEnabled
+                    binding.sim2OffPicker.hour   = s.offHour
+                    binding.sim2OffPicker.minute = s.offMinute
+                    binding.sim2OnPicker.hour    = s.onHour
+                    binding.sim2OnPicker.minute  = s.onMinute
                     binding.sim2ScheduleContent.visibility =
                         if (s.isEnabled) View.VISIBLE else View.GONE
                 }
@@ -86,6 +101,10 @@ class MainActivity : AppCompatActivity() {
         binding.saveButton.setOnClickListener { saveSchedules() }
         binding.enableAccessibilityBtn.setOnClickListener { openAccessibilitySettings() }
         binding.grantAlarmBtn.setOnClickListener { requestAlarmPermission() }
+        binding.grantNotifBtn.setOnClickListener { requestNotificationPermissionIfNeeded() }
+        binding.diagnosticBtn.setOnClickListener {
+            startActivity(Intent(this, DiagnosticActivity::class.java))
+        }
     }
 
     private fun saveSchedules() {
@@ -128,7 +147,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNextAction(schedules: List<SimSchedule>) {
-        val now = Calendar.getInstance()
+        val now  = Calendar.getInstance()
         val nowM = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         data class A(val label: String, val mins: Int)
         val actions = mutableListOf<A>()
@@ -145,12 +164,23 @@ class MainActivity : AppCompatActivity() {
             "Next: ${next.label} in ${next.mins / 60}h ${next.mins % 60}m"
     }
 
+    // ── Permission helpers ────────────────────────────────────────────────────
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     private fun updateAccessibilityStatus() {
         val on = SimAccessibilityService.instance != null ||
             Settings.Secure.getString(contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                 ?.contains("$packageName/${SimAccessibilityService::class.java.canonicalName}") == true
-
         binding.accessibilityStatus.text =
             if (on) "✅ Accessibility Service: Active"
             else    "⚠️ Accessibility Service: Disabled"
@@ -170,6 +200,20 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.alarmPermissionStatus.visibility = View.GONE
             binding.grantAlarmBtn.visibility = View.GONE
+        }
+    }
+
+    private fun updateNotifPermissionStatus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val ok = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            binding.notifPermissionStatus.text =
+                if (ok) "✅ Notifications enabled"
+                else    "⚠️ Notification permission needed"
+            binding.grantNotifBtn.visibility = if (ok) View.GONE else View.VISIBLE
+        } else {
+            binding.notifPermissionStatus.visibility = View.GONE
+            binding.grantNotifBtn.visibility = View.GONE
         }
     }
 
