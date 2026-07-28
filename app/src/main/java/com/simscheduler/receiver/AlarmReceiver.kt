@@ -17,7 +17,6 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object { private const val TAG = "AlarmReceiver" }
 
     override fun onReceive(context: Context, intent: Intent) {
-        // Now uses SLOT number — not SIM name
         val simSlot = intent.getIntExtra("sim_slot", 0)
         val turnOff = intent.getBooleanExtra("turn_off", true)
 
@@ -38,9 +37,8 @@ class AlarmReceiver : BroadcastReceiver() {
 
             val svc = SimAccessibilityService.instance
             if (svc != null) {
-                // Pass SLOT number — not name
-                svc.performSimToggle(simSlot, turnOff)
-                Log.d(TAG, "✅ Triggered for slot $simSlot")
+                svc.start(simSlot, turnOff)   // ← renamed from performSimToggle to start
+                Log.d(TAG, "✅ Triggered slot=$simSlot")
             } else {
                 Log.e(TAG, "❌ Accessibility Service not running")
             }
