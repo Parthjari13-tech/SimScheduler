@@ -1,207 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="@color/background">
 
+    <!-- App Header -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/accent"
+        android:padding="16dp">
 
-        <!-- Header -->
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="SIM Scheduler" android:textSize="28sp" android:textStyle="bold"
-            android:textColor="@color/text_primary" android:layout_marginBottom="4dp"/>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Auto-manage your SIM cards on a schedule"
-            android:textSize="14sp" android:textColor="@color/text_secondary"
-            android:layout_marginBottom="24dp"/>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <!-- Permissions Card -->
-        <androidx.cardview.widget.CardView android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp" app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/card_background">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="16dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SIM Scheduler"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"/>
 
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="PERMISSIONS" android:textSize="11sp"
-                    android:textColor="@color/text_secondary" android:layout_marginBottom="10dp"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Auto-manage your SIM cards"
+                android:textSize="12sp"
+                android:textColor="#CCFFFFFF"/>
+        </LinearLayout>
 
-                <!-- Accessibility -->
-                <TextView android:id="@+id/accessibilityStatus"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Checking..." android:textSize="14sp"
-                    android:layout_marginBottom="6dp"/>
-                <Button android:id="@+id/enableAccessibilityBtn"
-                    android:layout_width="match_parent" android:layout_height="44dp"
-                    android:text="Enable Accessibility Service"
-                    android:backgroundTint="@color/accent" android:visibility="gone"
-                    android:layout_marginBottom="10dp"/>
+        <TextView
+            android:id="@+id/headerStatusDot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/status_dot"
+            android:layout_marginEnd="4dp"/>
 
-                <!-- Alarm -->
-                <TextView android:id="@+id/alarmPermissionStatus"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Checking..." android:textSize="14sp"
-                    android:layout_marginBottom="6dp"/>
-                <Button android:id="@+id/grantAlarmBtn"
-                    android:layout_width="match_parent" android:layout_height="44dp"
-                    android:text="Grant Alarm Permission"
-                    android:backgroundTint="@color/accent" android:visibility="gone"
-                    android:layout_marginBottom="10dp"/>
-
-                <!-- Notification -->
-                <TextView android:id="@+id/notifPermissionStatus"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Checking..." android:textSize="14sp"
-                    android:layout_marginBottom="6dp"/>
-                <Button android:id="@+id/grantNotifBtn"
-                    android:layout_width="match_parent" android:layout_height="44dp"
-                    android:text="Grant Notification Permission"
-                    android:backgroundTint="@color/accent" android:visibility="gone"/>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- SIM 1 Card -->
-        <androidx.cardview.widget.CardView android:id="@+id/sim1Card"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" app:cardCornerRadius="16dp"
-            app:cardElevation="2dp" app:cardBackgroundColor="@color/card_background">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="16dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:gravity="center_vertical"
-                    android:layout_marginBottom="4dp">
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical">
-                        <LinearLayout android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:orientation="horizontal"
-                            android:gravity="center_vertical">
-                            <TextView android:layout_width="28dp" android:layout_height="28dp"
-                                android:text="1" android:textSize="13sp" android:textColor="#FFF"
-                                android:gravity="center" android:background="@drawable/sim_badge"
-                                android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/sim1Name"
-                                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:text="SIM 1" android:textSize="20sp" android:textStyle="bold"
-                                android:textColor="@color/text_primary"/>
-                        </LinearLayout>
-                        <TextView android:id="@+id/sim1Slot"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Slot 1 — First SIM card"
-                            android:textSize="12sp" android:textColor="@color/text_secondary"
-                            android:layout_marginTop="2dp"/>
-                    </LinearLayout>
-                    <Switch android:id="@+id/sim1Toggle"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="Schedule" android:textSize="13sp"
-                        android:textColor="@color/text_secondary"/>
-                </LinearLayout>
-                <LinearLayout android:id="@+id/sim1ScheduleContent"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:visibility="gone">
-                    <View android:layout_width="match_parent" android:layout_height="1dp"
-                        android:background="@color/divider" android:layout_marginVertical="12dp"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:text="Turn OFF at" android:textSize="13sp"
-                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp"/>
-                    <TimePicker android:id="@+id/sim1OffPicker"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:timePickerMode="spinner" android:layout_marginBottom="12dp"/>
-                    <View android:layout_width="match_parent" android:layout_height="1dp"
-                        android:background="@color/divider" android:layout_marginBottom="12dp"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:text="Turn ON at" android:textSize="13sp"
-                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp"/>
-                    <TimePicker android:id="@+id/sim1OnPicker"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:timePickerMode="spinner"/>
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- SIM 2 Card -->
-        <androidx.cardview.widget.CardView android:id="@+id/sim2Card"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" android:visibility="gone"
-            app:cardCornerRadius="16dp" app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/card_background">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="16dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:gravity="center_vertical"
-                    android:layout_marginBottom="4dp">
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical">
-                        <LinearLayout android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:orientation="horizontal"
-                            android:gravity="center_vertical">
-                            <TextView android:layout_width="28dp" android:layout_height="28dp"
-                                android:text="2" android:textSize="13sp" android:textColor="#FFF"
-                                android:gravity="center" android:background="@drawable/sim_badge_2"
-                                android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/sim2Name"
-                                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:text="SIM 2" android:textSize="20sp" android:textStyle="bold"
-                                android:textColor="@color/text_primary"/>
-                        </LinearLayout>
-                        <TextView android:id="@+id/sim2Slot"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Slot 2 — Second SIM card"
-                            android:textSize="12sp" android:textColor="@color/text_secondary"
-                            android:layout_marginTop="2dp"/>
-                    </LinearLayout>
-                    <Switch android:id="@+id/sim2Toggle"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="Schedule" android:textSize="13sp"
-                        android:textColor="@color/text_secondary"/>
-                </LinearLayout>
-                <LinearLayout android:id="@+id/sim2ScheduleContent"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:visibility="gone">
-                    <View android:layout_width="match_parent" android:layout_height="1dp"
-                        android:background="@color/divider" android:layout_marginVertical="12dp"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:text="Turn OFF at" android:textSize="13sp"
-                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp"/>
-                    <TimePicker android:id="@+id/sim2OffPicker"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:timePickerMode="spinner" android:layout_marginBottom="12dp"/>
-                    <View android:layout_width="match_parent" android:layout_height="1dp"
-                        android:background="@color/divider" android:layout_marginBottom="12dp"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:text="Turn ON at" android:textSize="13sp"
-                        android:textColor="@color/text_secondary" android:layout_marginBottom="4dp"/>
-                    <TimePicker android:id="@+id/sim2OnPicker"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:timePickerMode="spinner"/>
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- Next action label -->
-        <TextView android:id="@+id/nextActionLabel"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textSize="13sp" android:textColor="@color/text_secondary"
-            android:gravity="center" android:layout_marginBottom="12dp"/>
-
-        <!-- Diagnostic button -->
-        <Button android:id="@+id/diagnosticBtn"
-            android:layout_width="match_parent" android:layout_height="44dp"
-            android:text="🔧 Diagnostic Tool"
-            android:textSize="14sp" android:backgroundTint="#FF6F00"
-            android:layout_marginBottom="8dp"/>
-
-        <!-- Save button -->
-        <Button android:id="@+id/saveButton"
-            android:layout_width="match_parent" android:layout_height="56dp"
-            android:text="Save Schedules" android:textSize="16sp" android:textStyle="bold"
-            android:backgroundTint="@color/accent" android:layout_marginBottom="24dp"/>
-
+        <TextView
+            android:id="@+id/headerStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Active"
+            android:textSize="12sp"
+            android:textColor="#CCFFFFFF"/>
     </LinearLayout>
-</ScrollView>
+
+    <!-- Tab Layout -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/accent"
+        app:tabTextColor="#99FFFFFF"
+        app:tabSelectedTextColor="#FFFFFF"
+        app:tabIndicatorColor="#FFFFFF"
+        app:tabIndicatorHeight="3dp"
+        app:tabMode="fixed"
+        app:tabGravity="fill"/>
+
+    <!-- Tab Content -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+</LinearLayout>
