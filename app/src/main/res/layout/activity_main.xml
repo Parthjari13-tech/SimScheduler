@@ -6,53 +6,6 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- App Header -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@color/accent"
-        android:padding="16dp">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SIM Scheduler"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="#FFFFFF"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Auto-manage your SIM cards"
-                android:textSize="12sp"
-                android:textColor="#CCFFFFFF"/>
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/headerStatusDot"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:background="@drawable/status_dot"
-            android:layout_marginEnd="4dp"/>
-
-        <TextView
-            android:id="@+id/headerStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Active"
-            android:textSize="12sp"
-            android:textColor="#CCFFFFFF"/>
-    </LinearLayout>
-
     <!-- Tab Layout -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
