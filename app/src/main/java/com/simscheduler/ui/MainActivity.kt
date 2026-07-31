@@ -78,11 +78,11 @@ class MainActivity : AppCompatActivity() {
     class TabAdapter(activity: AppCompatActivity) : FragmentStateAdapter(activity) {
         override fun getItemCount() = 4
         override fun createFragment(position: Int): Fragment = when (position) {
-            0 -> SimControlFragment()
+            0 -> HomeFragment()
             1 -> ScheduleFragment()
             2 -> HistoryFragment()
             3 -> SettingsFragment()
-            else -> SimControlFragment()
+            else -> HomeFragment()
         }
     }
 }
