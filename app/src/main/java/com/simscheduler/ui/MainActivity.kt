@@ -49,18 +49,18 @@ class MainActivity : AppCompatActivity() {
 
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
             tab.text = when (position) {
-                0 -> "SIM Control"
+                0 -> "Home"
                 1 -> "Schedule"
                 2 -> "History"
                 3 -> "Settings"
                 else -> ""
             }
             tab.icon = ContextCompat.getDrawable(this, when (position) {
-                0 -> android.R.drawable.ic_menu_manage
+                0 -> android.R.drawable.ic_menu_myplaces
                 1 -> android.R.drawable.ic_menu_recent_history
                 2 -> android.R.drawable.ic_menu_sort_by_size
                 3 -> android.R.drawable.ic_menu_preferences
-                else -> android.R.drawable.ic_menu_manage
+                else -> android.R.drawable.ic_menu_myplaces
             })
         }.attach()
     }
