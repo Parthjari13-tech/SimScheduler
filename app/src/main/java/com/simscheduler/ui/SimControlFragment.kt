@@ -4,8 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.addCallback
 import androidx.fragment.app.Fragment
 import com.simscheduler.databinding.FragmentSimControlBinding
 import com.simscheduler.service.SimAccessibilityService
@@ -28,12 +28,26 @@ class SimControlFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         loadSimInfo()
         setupButtons()
-        setupVolumeControl()
+        setupBackNavigation()
     }
 
     override fun onResume() {
         super.onResume()
         updateStatus()
+    }
+
+    private fun setupBackNavigation() {
+        binding.backBtn.setOnClickListener {
+            parentFragmentManager.popBackStack()
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
+            if (parentFragmentManager.backStackEntryCount > 0) {
+                parentFragmentManager.popBackStack()
+            } else {
+                isEnabled = false
+                requireActivity().onBackPressedDispatcher.onBackPressed()
+            }
+        }
     }
 
     private fun loadSimInfo() {
@@ -77,43 +91,6 @@ class SimControlFragment : Fragment() {
             loadSimInfo()
             updateStatus()
             Toast.makeText(requireContext(), "Refreshed", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // --- Volume Control (UI only for now — actual volume logic to be added later) ---
-
-    private var isMuted = false
-    private var lastVolumeBeforeMute = 50
-
-    private fun setupVolumeControl() {
-        binding.volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                binding.volumePercentText.text = "$progress%"
-                if (progress > 0 && isMuted) {
-                    isMuted = false
-                    binding.muteToggleBtn.text = "🔇 Mute"
-                }
-                // TODO: apply actual volume change here later
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        binding.muteToggleBtn.setOnClickListener {
-            if (!isMuted) {
-                lastVolumeBeforeMute = binding.volumeSeekBar.progress
-                binding.volumeSeekBar.progress = 0
-                binding.volumePercentText.text = "0%"
-                binding.muteToggleBtn.text = "🔊 Unmute"
-                isMuted = true
-                // TODO: apply actual mute here later
-            } else {
-                binding.volumeSeekBar.progress = lastVolumeBeforeMute
-                binding.volumePercentText.text = "$lastVolumeBeforeMute%"
-                binding.muteToggleBtn.text = "🔇 Mute"
-                isMuted = false
-                // TODO: apply actual unmute/restore-volume here later
-            }
         }
     }
 
