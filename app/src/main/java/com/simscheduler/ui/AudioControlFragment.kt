@@ -36,9 +36,6 @@ class AudioControlFragment : Fragment() {
     }
 
     private fun setupBackNavigation() {
-        binding.backBtn.setOnClickListener {
-            parentFragmentManager.popBackStack()
-        }
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
             if (parentFragmentManager.backStackEntryCount > 0) {
                 parentFragmentManager.popBackStack()
