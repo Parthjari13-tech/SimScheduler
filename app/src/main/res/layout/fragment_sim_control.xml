@@ -155,32 +155,6 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- SIM 1 Control Buttons -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/sim1BtnOff"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="Turn OFF"
-                        android:textSize="14sp"
-                        android:backgroundTint="#D32F2F"
-                        android:layout_marginEnd="8dp"/>
-
-                    <Button
-                        android:id="@+id/sim1BtnOn"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="Turn ON"
-                        android:textSize="14sp"
-                        android:backgroundTint="#388E3C"/>
-                </LinearLayout>
-
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -274,32 +248,6 @@
                                 android:textColor="@color/text_secondary"/>
                         </LinearLayout>
                     </LinearLayout>
-                </LinearLayout>
-
-                <!-- SIM 2 Control Buttons -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/sim2BtnOff"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="Turn OFF"
-                        android:textSize="14sp"
-                        android:backgroundTint="#D32F2F"
-                        android:layout_marginEnd="8dp"/>
-
-                    <Button
-                        android:id="@+id/sim2BtnOn"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="Turn ON"
-                        android:textSize="14sp"
-                        android:backgroundTint="#388E3C"/>
                 </LinearLayout>
 
             </LinearLayout>
