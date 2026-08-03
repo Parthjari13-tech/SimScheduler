@@ -78,37 +78,12 @@ class SimControlFragment : Fragment() {
     }
 
     private fun setupButtons() {
-        // SIM 1 manual toggle buttons
-        binding.sim1BtnOff.setOnClickListener { manualToggle(0, turnOff = true) }
-        binding.sim1BtnOn.setOnClickListener  { manualToggle(0, turnOff = false) }
-
-        // SIM 2 manual toggle buttons
-        binding.sim2BtnOff.setOnClickListener { manualToggle(1, turnOff = true) }
-        binding.sim2BtnOn.setOnClickListener  { manualToggle(1, turnOff = false) }
-
         // Refresh button
         binding.refreshBtn.setOnClickListener {
             loadSimInfo()
             updateStatus()
             Toast.makeText(requireContext(), "Refreshed", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun manualToggle(slot: Int, turnOff: Boolean) {
-        val svc = SimAccessibilityService.instance
-        if (svc == null) {
-            Toast.makeText(requireContext(),
-                "⚠️ Accessibility Service not running\nGo to Settings tab to enable it",
-                Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val simLabel = "SIM ${slot + 1}"
-        val action   = if (turnOff) "OFF" else "ON"
-        Toast.makeText(requireContext(),
-            "Turning $simLabel $action...", Toast.LENGTH_SHORT).show()
-
-        svc.start(slot, turnOff)
     }
 
     private fun updateStatus() {
